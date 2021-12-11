@@ -7,13 +7,15 @@ html(lang="en")
         title Document
     body 
 
-        form(action="/login", method="post")
+        form(action="/login", method="post" id="reg-form")
             label(for="username") username
-            input(type="email",  name="name") 
+            input(type="email",  name="name", id="username") 
             br
 
             label(for="password") password
-            input(type="password", name="password")
+            input(type="password", name="password", id="password")
             br
 
-            button(type="submit") register
+            button(type="submit", id="btn-login") log in
+
+			script include

@@ -7,8 +7,13 @@ const app = express()
 const bcrypt = require('bcrypt')
 const jwt = require('jsonwebtoken')
 
+const auth = require('./auth');
+const db = require('./database/data')
+
+
 var bodyParser = require('body-parser')
 const { urlencoded } = require('body-parser')
+const { receiveMessageOnPort } = require('worker_threads')
 
 app.use(express.static('public'));
 app.engine('pug', require('pug').__express)
@@ -16,111 +21,70 @@ app.set('view engine', 'pug');
 
 app.use(express.json())
 
+app.use(auth.verifyToken)
+
 var urlencodedParser = bodyParser.urlencoded({ extended: false })
 
-//const { auth, requiresAuth } = require('express-openid-connect')
 const port = process.env.PORT || 4080;
 
 const baseURL = process.env.APP_URL || `http://localhost:${port}`
 
-/*const config = {
-	authRequired: false,
-	idpLogout: true,
-	auth0Logout: true,
-	issuerBaseURL: process.env.ISSUER_BASE_URL,
-	baseURL: baseURL,
-	clientID: process.env.CLIENT_ID,
-	secret: process.env.SECRET,
-	clientSecret: process.env.CLIENT_SECRET,
-	authorizationParams: {
-		response_type: 'code',
-	},
-}*/
-
-//app.use(auth(config))
-
-app.get('/', (req, res) => {
-    res.render('index')
-})
-
 const users = []
-
 let refreshTokens = []
 
-app.get('/profile', authentiateToken, (req,res) => {
-    res.json(users.filter(user => user.name === req.user.name))
+app.get('/', (req, res) => {
+    res.render('client')
 })
 
-app.post('/token', (req, res) => {
-    const refreshToken = req.body.token
-    if (refreshToken == null) {
-        return res.status(401).send()
-    }
-    if (!refreshTokens.includes(refreshToken)) {
-        return res.status(403).send()
-    }
 
-    jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET, (err, user) => {
-        if (err) {
-            return res.status(403).send()
-        }
-        const accessToken = generateAccessToken({ name: user.name })
-        res.json({accessToken: accessToken})
-    })
-})
+app.post('/register', async (req, res) => {
 
-app.delete('/logout', (req, res) => {
-    refreshTokens = refreshTokens.filter(token => token !== req.body.token)
-    res.status(204).send()
-})
+    const a = await db.getAllUsers()
+    console.log(a)
 
-app.get('/register', (req,res) => {
-    res.render('register')
-})
-
-app.post('/register', urlencodedParser, async (req, res) => {
     try {
-        const hashedPasswod = await bcrypt.hash(req.body.password, 10)
-        const user = { 
-            name: req.body.name, 
-            password: hashedPasswod 
+        const exists = await db.getUser(req.body.username)
+        console.log(exists)
+
+        if (exists.length > 0) {
+            return res.status(400).send("User already eists")
         }
-        users.push(user)
-        res.status(201).render('profile', {user}) //send()
+
+        const hashedPasswod = await bcrypt.hash(req.body.password, 10)
+        console.log(hashedPasswod)
+        const user = {
+            username: req.body.username,
+            password: hashedPasswod
+        }
+        console.log(6)
+        const newUser = await db.createUser({ username: user.username, password: user.password })
+        console.log(7)
+        res.status(201).send()
     } catch {
         res.status(400).send()
     }
 })
 
-app.get('/login', (req, res) => {
-    res.render('login')
-})
+app.post('/login', async (req, res) => {
 
-function loginUser(user, password) {
-    const user = users.find(user => user.name = req.body.name)
-    if (user == null) {
-        return res.status(400).send('Invalid password or username')
-    }
-}
-
-app.post('/login', urlencodedParser, async (req, res) => {
-    const user = users.find(user => user.name = req.body.name)
-    if (user == null) {
-        return res.status(400).send('Invalid password or username')
-    }
     try {
-        if (await bcrypt.compare(req.body.password, user.password)) {
 
+        const exists = await db.getUser(req.body.username)
+
+        if (exists == null) {
+            return res.status(400).send('Invalid password or username')
+        }
+
+        if (await bcrypt.compare(req.body.password, exists[0].password)) {
             const username = req.body.username
-            const user = {
-                name: username
+
+            const payload = {
+                username
             }
 
-            const accessToken = generateAccessToken(user)  //jwt.sign(user, process.env.ACCESS_TOKEN_SECRET)
-            const refreshToken = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET)
-            refreshTokens.push(refreshToken)
-            res.json({accessToken: accessToken, refreshToken: refreshToken})
-            //res.send('Success')
+            const token = auth.generateAccessToken(payload)
+            res.json(token)
+
         } else {
             req.send('Not allowed')
         }
@@ -129,36 +93,38 @@ app.post('/login', urlencodedParser, async (req, res) => {
     }
 })
 
+
+
+app.get('/protected', auth.authenticationNeeded, async (req, res) => {
+    const userdb = await db.getUser(req.user.username)
+    const user = {usename: userdb[0].username, password: userdb[0].password}
+    res.json(user)
+})
+
+app.post('/pictures', auth.authenticationNeeded, async(req, res) => {
+    const picture = await db.createPicture(req.body.picture)
+})
+
+app.get('/pictures', auth.authenticationNeeded, async(req, res) => {
+    const pictures = await db.getAllPictures()
+    res.json(pictures)
+})
+
+
 const hostname = '127.0.0.1';
 
-if (!process.env.PORT) {
-	https.createServer({
-		key: fs.readFileSync(__dirname + '/cert/server.key'),
-		cert: fs.readFileSync(__dirname + '/cert/server.cert'),
-	}, app)
-		.listen(port, () => console.log(`Server running at https://${hostname}:${port}/`))
-} else {
-	app.listen(port, () => console.log(`Server running on ${baseURL}`))
-}
+// if (!process.env.PORT) {
+// 	https.createServer({
+// 		key: fs.readFileSync(__dirname + '/cert/server.key'),
+// 		cert: fs.readFileSync(__dirname + '/cert/server.cert'),
+// 	}, app)
+// 		.listen(port, () => console.log(`Server running at https://${hostname}:${port}/`))
+// } else {
+// 	app.listen(port, () => console.log(`Server running on ${baseURL}`))
+// }
 
-function authentiateToken(req, res, next) {
-    const authHeader = req.headers['authorization']
-    const token = authHeader && authHeader.split(' ')[1] // Bearer TOKEN
-    if (token == null) {
-        return res.status(401).send("Not authorised")
-    }
+app.listen(port, () => console.log(`Server running on ${baseURL}`))
 
-    jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, user) => {
-        if (err) {
-            return res.status(403).send("Forbidden")
-        }
 
-        req.user = user
-        next()
-    })
-}
 
-function generateAccessToken(user) {
-    return jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '15s' })
-}
 

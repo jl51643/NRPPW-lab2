@@ -1,0 +1,21 @@
+html     
+    head
+        
+        title Simple application for get data
+    body        
+        div(class="login-form")
+            h1 Login and get data
+            form(action="", method="post")
+                label(for="username") Username:
+                input(type="text", id="username", name="username", required) 
+                label(for="password") Password:
+                input(type="password", id="password", name="password", required)                 
+                input(type="button", id="btnLogin", value="Login") 
+                input(type="button", id="btnRegister", value="Register")
+        div(class="content-form")
+            input(type="button", id="btnLogout", value="Logout", style="display:none") 
+            input(type="button", id="btnGetData", value="Get data") 
+        div(id="content")
+        script(src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js") 
+        script 
+            include ../site.js 
