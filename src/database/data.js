@@ -23,10 +23,21 @@ function getAllPictures() {
     return db("pictures").select("*")
 }
 
+function clearUsers() {
+    return db("users").delete().where(true)
+}
+
+function clearPictures() {
+    return db("pictures").delete().where(true)
+}
+
+
 module.exports = {
     createUser,
     getAllUsers,
     getUser,
     createPicture,
-    getAllPictures
+    getAllPictures,
+    clearUsers,
+    clearPictures
 }

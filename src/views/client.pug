@@ -1,8 +1,13 @@
 html     
     head
         
-        title Simple application for get data
-    body        
+        title nrppw lab 2
+    body     
+
+        div(class="switch-btn-content")
+            input(type="button" id="switch-btn" value="switch security settings")
+            h2(id="security-value") app is secured:#{secure}
+
         div(class="login-form")
             h1 Login and get data
             form(action="", method="post")
@@ -12,6 +17,23 @@ html
                 input(type="password", id="password", name="password", required)                 
                 input(type="button", id="btnLogin", value="Login") 
                 input(type="button", id="btnRegister", value="Register")
+
+        div(class="upload-picture-form")
+            h1 Uplaod pictures 
+            form(action="", method="post")
+                label(for="picture-name") Picture name:
+                input(type="text", id="picture-name", name="picture-name", required) 
+                label(for="picture-url") Picture URL:
+                input(type="text", id="picture-url", name="picture-url", required)
+                input(type="button", id="upload-picture", value="Upload")   
+
+        div(class="pictures-list-content")
+            ul(class="pictures-list")
+                if secure
+                    for picture in pictures 
+                        li(class="pictures-list-item")
+                            img(src=picture.src, alt=picture.name)
+
         div(class="content-form")
             input(type="button", id="btnLogout", value="Logout", style="display:none") 
             input(type="button", id="btnGetData", value="Get data") 
